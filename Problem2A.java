@@ -34,6 +34,7 @@ public class Problem2A {
         private Set<String> stopwords = new HashSet<>();
         private PorterStemmer stemmer;
         private String docId;
+        private Set<String> seenTerms = new HashSet<>();
 
         @Override
         protected void setup(Context context) throws IOException, InterruptedException {
@@ -41,7 +42,7 @@ public class Problem2A {
             stemmer = new PorterStemmer();
 
             // Load stopwords
-            URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
+            URI[] cacheFiles = context.getCacheFiles();
             if (cacheFiles != null && cacheFiles.length > 0) {
                 for (URI cacheURI : cacheFiles) {
                     Path path = new Path(cacheURI.getPath());
@@ -69,18 +70,19 @@ public class Problem2A {
             String line = value.toString().toLowerCase();
             String[] tokens = line.split("[^a-z]+");
             
-            Set<String> uniqueTermsInLine = new HashSet<>();
-
             for (String token : tokens) {
                 if (token.length() > 0 && !stopwords.contains(token)) {
                     String stemmed = stemmer.stem(token);
                     if (stemmed.length() > 0) {
-                        uniqueTermsInLine.add(stemmed);
+                        seenTerms.add(stemmed);
                     }
                 }
             }
+        }
 
-            for (String uniqueTerm : uniqueTermsInLine) {
+        @Override
+        protected void cleanup(Context context) throws IOException, InterruptedException {
+            for (String uniqueTerm : seenTerms) {
                 term.set(uniqueTerm);
                 context.write(term, docIdText);
             }
@@ -118,8 +120,11 @@ public class Problem2A {
         job.setMapperClass(DocumentFrequencyMapper.class);
         job.setReducerClass(DocumentFrequencyReducer.class);
 
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(Text.class); // Mapper output value
+
         job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(Text.class); // Mapper output value
+        job.setOutputValueClass(IntWritable.class);
 
         int fileArgIndex = 0;
         for (int i = 0; i < args.length; ++i) {
@@ -134,6 +139,38 @@ public class Problem2A {
             }
         }
 
-        System.exit(job.waitForCompletion(true) ? 0 : 1);
+        boolean success = job.waitForCompletion(true);
+        if (success) {
+            extractTop100Terms(args[1] + "/part-r-00000", "top100_df.tsv");
+        }
+        System.exit(success ? 0 : 1);
+    }
+
+    private static void extractTop100Terms(String inputPath, String outputPath) {
+        List<java.util.Map.Entry<String, Integer>> entries = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(inputPath))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split("\t");
+                if (parts.length == 2) {
+                    entries.add(new java.util.AbstractMap.SimpleEntry<>(parts[0], Integer.parseInt(parts[1])));
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading output file for top 100 terms: " + e.getMessage());
+            return;
+        }
+
+        entries.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+        List<java.util.Map.Entry<String, Integer>> top100 = entries.subList(0, Math.min(100, entries.size()));
+
+        try (java.io.PrintWriter writer = new java.io.PrintWriter(new java.io.FileWriter(outputPath))) {
+            for (java.util.Map.Entry<String, Integer> entry : top100) {
+                writer.println(entry.getKey() + "\t" + entry.getValue());
+            }
+            System.out.println("Top 100 terms written to " + outputPath);
+        } catch (IOException e) {
+            System.err.println("Error writing top 100 terms file: " + e.getMessage());
+        }
     }
 }
