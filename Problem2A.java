@@ -15,6 +15,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.fs.FileSystem;
+import java.io.InputStreamReader;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -125,6 +127,8 @@ public class Problem2A {
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
+        
+        job.setNumReduceTasks(1); // Ensure output goes to a single part-r-00000 file
 
         int fileArgIndex = 0;
         for (int i = 0; i < args.length; ++i) {
@@ -141,19 +145,23 @@ public class Problem2A {
 
         boolean success = job.waitForCompletion(true);
         if (success && fileArgIndex == 2) {
-            extractTop100Terms(args[1] + "/part-r-00000", "top100_df.tsv");
+            extractTop100Terms(args[1] + "/part-r-00000", "top100_df.tsv", conf);
         }
         System.exit(success ? 0 : 1);
     }
 
-    private static void extractTop100Terms(String inputPath, String outputPath) {
+    private static void extractTop100Terms(String inputPathStr, String outputPath, Configuration conf) {
         List<java.util.Map.Entry<String, Integer>> entries = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(inputPath))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split("\t");
-                if (parts.length == 2) {
-                    entries.add(new java.util.AbstractMap.SimpleEntry<>(parts[0], Integer.parseInt(parts[1])));
+        Path inputPath = new Path(inputPathStr);
+        try {
+            FileSystem fs = inputPath.getFileSystem(conf);
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(fs.open(inputPath)))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split("\t");
+                    if (parts.length == 2) {
+                        entries.add(new java.util.AbstractMap.SimpleEntry<>(parts[0], Integer.parseInt(parts[1])));
+                    }
                 }
             }
         } catch (IOException e) {
