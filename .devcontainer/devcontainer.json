@@ -1,0 +1,10 @@
+{
+  "name": "Hadoop Environment",
+  "image": "mcr.microsoft.com/devcontainers/java:1-11-bullseye",
+  "postCreateCommand": "bash .devcontainer/setup-hadoop.sh",
+  "remoteEnv": {
+    "HADOOP_HOME": "/opt/hadoop",
+    "HADOOP_CLASSPATH": "${containerWorkspaceFolder}/opennlp-tools-1.9.3.jar",
+    "PATH": "${remoteEnv:PATH}:/opt/hadoop/bin:/opt/hadoop/sbin"
+  }
+}

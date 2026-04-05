@@ -1,0 +1,9 @@
+*.tar.gz
+*.tar
+out/
+output_*/
+.idea/
+*.iml
+build/
+*.jar
+!opennlp-tools-1.9.3.jar
