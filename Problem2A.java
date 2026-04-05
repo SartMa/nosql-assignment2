@@ -52,7 +52,10 @@ public class Problem2A {
                         try (BufferedReader reader = new BufferedReader(new FileReader(path.getName()))) {
                             String word;
                             while ((word = reader.readLine()) != null) {
-                                stopwords.add(word.trim().toLowerCase());
+                                String cleaned = word.trim().toLowerCase();
+                                if (!cleaned.isEmpty()) {
+                                    stopwords.add(stemmer.stem(cleaned));
+                                }
                             }
                         } catch (IOException e) {
                             System.err.println("Error reading stopwords file: " + e.getMessage());
