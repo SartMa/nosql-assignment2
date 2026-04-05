@@ -140,7 +140,7 @@ public class Problem2A {
         }
 
         boolean success = job.waitForCompletion(true);
-        if (success) {
+        if (success && fileArgIndex == 2) {
             extractTop100Terms(args[1] + "/part-r-00000", "top100_df.tsv");
         }
         System.exit(success ? 0 : 1);
