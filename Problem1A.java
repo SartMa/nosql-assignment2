@@ -53,9 +53,13 @@ public class Problem1A {
         private final static IntWritable one = new IntWritable(1);
         private Text word = new Text();
         private Set<String> stopWords = new HashSet<String>();
+        private boolean caseSensitive = false;
 
         @Override
         protected void setup(Context context) throws IOException, InterruptedException {
+            Configuration conf = context.getConfiguration();
+            caseSensitive = conf.getBoolean("wordcount.case.sensitive", false);
+
             URI[] patternsURIs = context.getCacheFiles();
             if (patternsURIs == null || patternsURIs.length == 0) {
                 Problem1A.logMessage(context.getConfiguration(), "No stopword file found in distributed cache.");
@@ -89,13 +93,26 @@ public class Problem1A {
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            String line = value.toString().toLowerCase();
-            String[] tokens = line.split("[^a-zA-Z]+");
+            String line = caseSensitive ? value.toString() : value.toString().toLowerCase();
+
+            // Normalize common Wikipedia dump noise before tokenization.
+            line = line.replaceAll("http\\S+", " ");
+            line = line.replaceAll("&\\w+;", " ");
+            line = line.replaceAll(caseSensitive ? "[^a-zA-Z ]" : "[^a-z ]", " ");
+
+            String[] tokens = line.split("\\s+");
             for (String token : tokens) {
-                if (token.length() > 0 && !stopWords.contains(token)) {
-                    word.set(token);
-                    context.write(word, one);
+                if (token.length() < 3) {
+                    continue;
                 }
+
+                String normalizedToken = caseSensitive ? token.toLowerCase() : token;
+                if (stopWords.contains(normalizedToken)) {
+                    continue;
+                }
+
+                word.set(token);
+                context.write(word, one);
             }
         }
     }
