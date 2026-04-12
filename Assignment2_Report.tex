@@ -1,0 +1,278 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{enumitem}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  keepspaces=true,
+  showstringspaces=false
+}
+
+\title{NoSQL Assignment 2 Report\\MapReduce Solutions for Problems 1 and 2}
+\author{Student: \underline{\hspace{5cm}}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Overview}
+This report documents the implementation and execution of Problems 1 and 2 using Hadoop MapReduce.
+All experiments were run on the HDFS workspace path:
+\begin{lstlisting}
+/user/vscode/assignment2
+\end{lstlisting}
+
+Input corpus used:
+\begin{lstlisting}
+/user/vscode/assignment2/input_docs/Wikipedia-EN-20120601_ARTICLES
+\end{lstlisting}
+
+This report includes:
+\begin{itemize}[leftmargin=*]
+  \item implementation summary for each sub-problem,
+  \item output evidence from generated files,
+  \item runtime statistics for Problem 1 variants,
+  \item correctness validation across baseline and optimized versions.
+\end{itemize}
+
+Problem 2 runtime statistics are intentionally omitted per requested reporting scope.
+
+\section{Problem 1}
+
+\subsection{Problem 1A: Top-50 Document Frequency Terms}
+\textbf{Goal:} compute document frequency and extract top 50 terms.
+
+\textbf{Implementation summary:}
+\begin{itemize}[leftmargin=*]
+  \item Mapper emits term and document id.
+  \item Reducer counts unique documents per term (DF).
+  \item Final output is post-processed to produce \texttt{top50\_1a.tsv}.
+\end{itemize}
+
+\textbf{Output artifacts:}
+\begin{itemize}[leftmargin=*]
+  \item \texttt{downloads/output\_1a/part-r-00000} (50 lines)
+  \item \texttt{top50\_1a.tsv} (50 lines)
+\end{itemize}
+
+\textbf{Sample from \texttt{top50\_1a.tsv}:}
+\begin{lstlisting}
+apos    273057
+quot    267968
+s       206869
+http    79094
+1       75348
+2       65386
+category        60521
+this    58742
+0       54283
+www     54131
+\end{lstlisting}
+
+\subsection{Problem 1B: Co-occurrence Pairs (Baseline)}
+\textbf{Goal:} compute co-occurrence counts for top words using pair representation for window sizes $d \in \{1,2,3,4\}$.
+
+\textbf{Implementation summary:}
+\begin{itemize}[leftmargin=*]
+  \item Mapper tokenizes each line and emits ordered pairs \texttt{(w\_i,w\_j)} within distance $d$.
+  \item Reducer sums all pair counts.
+\end{itemize}
+
+\textbf{Output artifacts:}
+\begin{itemize}[leftmargin=*]
+  \item \texttt{downloads/output\_1b\_d1/part-r-00000}
+  \item \texttt{downloads/output\_1b\_d2/part-r-00000}
+  \item \texttt{downloads/output\_1b\_d3/part-r-00000}
+  \item \texttt{downloads/output\_1b\_d4/part-r-00000}
+\end{itemize}
+
+\textbf{Sample from \texttt{output\_1b\_d1}:}
+\begin{lstlisting}
+(0,0)   5572
+(0,1)   3383
+(0,10)  503
+(0,11)  375
+(0,12)  479
+(0,2)   2430
+(0,2006)        99
+(0,2007)        66
+\end{lstlisting}
+
+\subsection{Problem 1C: Co-occurrence Stripes (Baseline)}
+\textbf{Goal:} compute co-occurrence using stripe representation for $d \in \{1,2,3,4\}$.
+
+\textbf{Implementation summary:}
+\begin{itemize}[leftmargin=*]
+  \item Mapper builds neighbor-frequency maps (stripes).
+  \item Reducer merges stripes per focus term.
+\end{itemize}
+
+\textbf{Output artifacts:}
+\begin{itemize}[leftmargin=*]
+  \item \texttt{downloads/output\_1c\_d1/part-r-00000}
+  \item \texttt{downloads/output\_1c\_d2/part-r-00000}
+  \item \texttt{downloads/output\_1c\_d3/part-r-00000}
+  \item \texttt{downloads/output\_1c\_d4/part-r-00000}
+\end{itemize}
+
+\textbf{Sample from \texttt{output\_1c\_d1}:}
+\begin{lstlisting}
+0   {d=36, i=61, time=15, ..., 0=5572, 1=3383, 2=2430, ..., used=2}
+1   {d=99, i=249, time=84, ..., 1=4324, 2=3890, ..., used=3}
+10  {d=22, i=45, time=21, ..., 10=776, 11=534, ..., used=4}
+\end{lstlisting}
+
+\subsection{Problem 1E: In-Mapper Aggregation Variants}
+\textbf{Goal:} compare map-level aggregation strategies for both pair and stripe formulations.
+
+Implemented variants:
+\begin{itemize}[leftmargin=*]
+  \item Map-class-level pairs
+  \item Map-function-level pairs
+  \item Map-class-level stripes
+  \item Map-function-level stripes
+\end{itemize}
+
+For each variant, runs were executed for $d=1,2,3,4$ and outputs were downloaded.
+
+\subsection{Problem 1 Correctness Validation}
+\subsubsection*{Pairs Equivalence}
+SHA-256 checksums for baseline pairs (1B) and both 1E pair variants are identical for each $d$:
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$d$ & 1B vs 1E Map-Class & 1B vs 1E Map-Function & Status \\
+\midrule
+1 & identical & identical & pass \\
+2 & identical & identical & pass \\
+3 & identical & identical & pass \\
+4 & identical & identical & pass \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection*{Stripes Equivalence}
+Raw text checksums differ due to map entry ordering in serialized stripe maps.
+A semantic comparison (parsing each stripe as key-value maps) shows exact equality with 1C for all $d$:
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$d$ & 1C vs 1E Map-Class & 1C vs 1E Map-Function & Keys \\
+\midrule
+1 & true & true & 50 \\
+2 & true & true & 50 \\
+3 & true & true & 50 \\
+4 & true & true & 50 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Problem 1 Runtime Statistics}
+Measured runtimes (seconds), collected from runtime logs:
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+Variant & $d=1$ & $d=2$ & $d=3$ & $d=4$ & Avg \\
+\midrule
+1B Pairs (baseline) & 110 & 109 & 111 & 110 & 110.00 \\
+1C Stripes (baseline) & 140 & 133 & 139 & 132 & 136.00 \\
+1E Map-Class Pairs & 125 & 117 & 128 & 121 & 122.75 \\
+1E Map-Function Pairs & 123 & 120 & 123 & 122 & 122.00 \\
+1E Map-Class Stripes & 133 & 111 & 110 & 110 & 116.00 \\
+1E Map-Function Stripes & 107 & 108 & 107 & 113 & 108.75 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Observations:}
+\begin{itemize}[leftmargin=*]
+  \item Pair variants in 1E were slower than 1B baseline (about 10--12\% slower on average).
+  \item Stripe variants in 1E were faster than 1C baseline.
+  \item Best overall for stripes was map-function-level aggregation (about 20\% faster than 1C baseline).
+\end{itemize}
+
+\section{Problem 2}
+
+\subsection{Problem 2A: Document Frequency over Full Vocabulary}
+\textbf{Goal:} compute term document frequencies on full corpus (with stopword filtering and stemming), then generate top-100 DF file.
+
+\textbf{Implementation summary:}
+\begin{itemize}[leftmargin=*]
+  \item Stopwords loaded from distributed cache \texttt{stopwords.txt}.
+  \item Porter stemming applied.
+  \item Document-frequency counting done with unique-term-per-document logic.
+  \item Top 100 terms written to \texttt{top100\_df.tsv} for downstream use.
+\end{itemize}
+
+\textbf{Output artifacts and scale:}
+\begin{itemize}[leftmargin=*]
+  \item \texttt{downloads/output\_2a/part-r-00000}: 536,676 lines
+  \item \texttt{top100\_df.tsv}: 100 lines
+\end{itemize}
+
+\textbf{Sample from \texttt{output\_2a}:}
+\begin{lstlisting}
+0       6598
+00      1197
+000     3598
+0000    21
+000000  31
+\end{lstlisting}
+
+\subsection{Problem 2B: TF-DF Scoring using Top-100 DF Cache}
+\textbf{Goal:} compute TF-DF style score per (document, term) for terms in \texttt{top100\_df.tsv}.
+
+\textbf{Implementation summary:}
+\begin{itemize}[leftmargin=*]
+  \item Mapper loads \texttt{top100\_df.tsv} from distributed cache.
+  \item Mapper computes per-document term frequencies for eligible terms.
+  \item Reducer computes
+  \[
+  \text{score}(t,d) = tf(t,d) \cdot \ln\left(\frac{10000}{df(t)} + 1\right)
+  \]
+  and emits \texttt{doc\_id, term, score}.
+\end{itemize}
+
+\textbf{Output artifacts and scale:}
+\begin{itemize}[leftmargin=*]
+  \item \texttt{downloads/output\_2b/part-r-00000}: 612,083 lines
+\end{itemize}
+
+\textbf{Sample from \texttt{output\_2b}:}
+\begin{lstlisting}
+100005.txt  pt        0.9437550337378534
+100005.txt  american  1.0359746440798363
+100005.txt  extern    0.8103750615915115
+100005.txt  three     1.0247333098150446
+100005.txt  major     1.1216660991875558
+\end{lstlisting}
+
+\section{Files Used in This Report}
+\begin{itemize}[leftmargin=*]
+  \item Source files: \texttt{Problem1A.java}, \texttt{Problem1B.java}, \texttt{Problem1C.java},
+  \texttt{Problem1E\_MapClassLevel\_Pairs.java}, \texttt{Problem1E\_MapFunctionLevel\_Pairs.java},
+  \texttt{Problem1E\_MapClassLevel\_Stripes.java}, \texttt{Problem1E\_MapFunctionLevel\_Stripes.java},
+  \texttt{Problem2A.java}, \texttt{Problem2B.java}
+  \item Runtime logs: \texttt{runtime\_1b.txt}, \texttt{runtime\_1c.txt},
+  \texttt{runtime\_1e\_mapclass.txt}, \texttt{runtime\_1e\_mapfunc.txt},
+  \texttt{runtime\_1e\_mapclass\_stripes.txt}, \texttt{runtime\_1e\_mapfunc\_stripes.txt}
+  \item Output files under \texttt{downloads/}
+\end{itemize}
+
+\section{Conclusion}
+Both Problem 1 and Problem 2 pipelines were implemented and executed end-to-end on HDFS.
+For Problem 1, correctness was validated across baseline and optimized variants, and runtime analysis shows
+that in-mapper aggregation is particularly effective for stripe-based co-occurrence.
+For Problem 2, the DF extraction and TF-DF scoring stages produced large, valid outputs suitable for further analysis.
+
+\end{document}
