@@ -6,6 +6,8 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.naming.Context;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DoubleWritable;
@@ -91,8 +93,7 @@ public class Problem2B {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             String line = value.toString().toLowerCase();
-            String[] tokens = line.split("[^a-z]+");
-
+            String[] tokens = value.toString().toLowerCase().split("[^\\w']+");
             Map<String, Integer> localStripe = new HashMap<>();
             for (String token : tokens) {
                 if (token.isEmpty()) {

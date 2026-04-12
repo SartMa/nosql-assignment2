@@ -5,6 +5,9 @@ import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.StringTokenizer;
+
+import javax.naming.Context;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -73,12 +76,12 @@ public class Problem2A {
         @Override
         public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             String line = value.toString().toLowerCase();
-            String[] tokens = line.split("[^a-z]+");
-            
+            String[] tokens = value.toString().toLowerCase().split("[^\\w']+");
+
             for (String token : tokens) {
-                if (token.length() > 0 && !stopwords.contains(token)) {
+                if (token.length() > 0) {
                     String stemmed = stemmer.stem(token);
-                    if (stemmed.length() > 0) {
+                    if (stemmed.length() > 0 && !stopwords.contains(stemmed)) {
                         seenTerms.add(stemmed);
                     }
                 }
@@ -118,7 +121,7 @@ public class Problem2A {
         Configuration conf = new Configuration();
         // Use a tab separator for the output
         conf.set("mapreduce.output.textoutputformat.separator", "\t");
-        
+
         Job job = Job.getInstance(conf, "Document Frequency");
         job.setJarByClass(Problem2A.class);
 
@@ -130,7 +133,7 @@ public class Problem2A {
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
-        
+
         job.setNumReduceTasks(1); // Ensure output goes to a single part-r-00000 file
 
         int fileArgIndex = 0;
